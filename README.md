@@ -6,7 +6,7 @@ A complete end-to-end ML pipeline for **Diabetic Retinopathy Detection** using E
 ---
 
 ## Video Demo
-[YouTube Demo Link](#) ← Add your YouTube link here after recording
+[YouTube Demo Link](https://www.youtube.com/watch?v=rkSSSo5-Qxc)
 
 ##  Live URL
 - **API:** http://13.61.0.203:8000/docs
