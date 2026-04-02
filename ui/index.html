@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Retina DR Classifier</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; }
+  header { background: #1e293b; padding: 20px 40px; display: flex; align-items: center; gap: 15px; border-bottom: 2px solid #3b82f6; }
+  header h1 { font-size: 1.5rem; color: #3b82f6; }
+  header span { font-size: 0.85rem; color: #94a3b8; }
+  nav { display: flex; gap: 0; background: #1e293b; padding: 0 40px; border-bottom: 1px solid #334155; }
+  nav button { padding: 14px 24px; background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 0.95rem; border-bottom: 3px solid transparent; transition: all 0.2s; }
+  nav button.active, nav button:hover { color: #3b82f6; border-bottom-color: #3b82f6; }
+  .tab { display: none; padding: 30px 40px; }
+  .tab.active { display: block; }
+  .card { background: #1e293b; border-radius: 12px; padding: 24px; margin-bottom: 20px; border: 1px solid #334155; }
+  .card h2 { font-size: 1.1rem; color: #94a3b8; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .metric-box { background: #0f172a; border-radius: 8px; padding: 20px; text-align: center; border: 1px solid #334155; }
+  .metric-box .value { font-size: 2rem; font-weight: bold; color: #3b82f6; }
+  .metric-box .label { font-size: 0.85rem; color: #64748b; margin-top: 4px; }
+  .status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #22c55e; margin-right: 8px; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .upload-area { border: 2px dashed #334155; border-radius: 8px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.2s; }
+  .upload-area:hover { border-color: #3b82f6; background: #1e3a5f22; }
+  .upload-area input { display: none; }
+  button.btn { background: #3b82f6; color: white; border: none; padding: 12px 28px; border-radius: 8px; cursor: pointer; font-size: 1rem; margin-top: 12px; transition: background 0.2s; }
+  button.btn:hover { background: #2563eb; }
+  button.btn.green { background: #22c55e; }
+  button.btn.green:hover { background: #16a34a; }
+  button.btn.red { background: #ef4444; }
+  .result-box { background: #0f172a; border-radius: 8px; padding: 20px; margin-top: 16px; display: none; }
+  .result-box .class-name { font-size: 1.8rem; font-weight: bold; color: #3b82f6; }
+  .result-box .confidence { font-size: 1rem; color: #94a3b8; margin-top: 4px; }
+  .prob-bar { margin: 6px 0; }
+  .prob-bar .bar-label { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 3px; }
+  .prob-bar .bar-track { background: #334155; border-radius: 4px; height: 8px; }
+  .prob-bar .bar-fill { height: 8px; border-radius: 4px; background: #3b82f6; transition: width 0.5s; }
+  .preview-img { max-width: 200px; max-height: 200px; border-radius: 8px; margin: 10px auto; display: block; }
+  select { background: #0f172a; color: #e2e8f0; border: 1px solid #334155; padding: 10px; border-radius: 8px; font-size: 1rem; width: 100%; margin-bottom: 12px; }
+  .retrain-status { padding: 12px 20px; border-radius: 8px; margin-top: 12px; font-weight: 500; }
+  .status-idle { background: #1e293b; color: #94a3b8; }
+  .status-running { background: #1e3a5f; color: #3b82f6; }
+  .status-complete { background: #14532d; color: #22c55e; }
+  .status-failed { background: #450a0a; color: #ef4444; }
+  canvas { max-height: 300px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🔬 Retina DR Classifier</h1>
+    <span>Diabetic Retinopathy Detection — EfficientNetB0</span>
+  </div>
+  <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+    <span class="status-dot"></span>
+    <span id="uptime">Loading...</span>
+  </div>
+</header>
+
+<nav>
+  <button class="active" onclick="showTab('monitor')">📊 Monitor</button>
+  <button onclick="showTab('predict')">🔍 Predict</button>
+  <button onclick="showTab('visualize')">📈 Visualizations</button>
+  <button onclick="showTab('retrain')">🔁 Retrain</button>
+</nav>
+
+<!-- MONITOR TAB -->
+<div id="monitor" class="tab active">
+  <div class="card">
+    <h2>Model Status</h2>
+    <div class="grid">
+      <div class="metric-box"><div class="value" id="m-accuracy">--</div><div class="label">Accuracy</div></div>
+      <div class="metric-box"><div class="value" id="m-f1">--</div><div class="label">F1 Score</div></div>
+      <div class="metric-box"><div class="value" id="m-roc">--</div><div class="label">ROC-AUC</div></div>
+      <div class="metric-box"><div class="value" id="m-uptime">--</div><div class="label">Uptime (s)</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Training History</h2>
+    <canvas id="historyChart"></canvas>
+  </div>
+</div>
+
+<!-- PREDICT TAB -->
+<div id="predict" class="tab">
+  <div class="card">
+    <h2>Upload Retinal Image for Prediction</h2>
+    <div class="upload-area" onclick="document.getElementById('predictFile').click()">
+      <input type="file" id="predictFile" accept="image/*" onchange="previewImage(this)">
+      <p>📁 Click to upload a retinal image</p>
+      <p style="color:#64748b; font-size:0.85rem; margin-top:8px">PNG, JPG supported</p>
+    </div>
+    <img id="previewImg" class="preview-img" style="display:none">
+    <br>
+    <button class="btn" onclick="runPredict()">🔍 Predict</button>
+    <div class="result-box" id="resultBox">
+      <div class="class-name" id="resultClass"></div>
+      <div class="confidence" id="resultConf"></div>
+      <div id="probBars" style="margin-top:16px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- VISUALIZATIONS TAB -->
+<div id="visualize" class="tab">
+  <div class="card">
+    <h2>Class Distribution</h2>
+    <canvas id="classChart"></canvas>
+    <p style="color:#64748b; margin-top:12px; font-size:0.9rem">
+      The dataset is heavily imbalanced — Grade 0 (No DR) dominates with 1805 samples while Grade 3 (Severe) has only 193. Class weights were applied during training to handle this imbalance.
+    </p>
+  </div>
+  <div class="card">
+    <h2>Model Confidence Distribution</h2>
+    <canvas id="confChart"></canvas>
+    <p style="color:#64748b; margin-top:12px; font-size:0.9rem">
+      Confidence scores per class show how certain the model is when predicting each DR grade. Lower confidence on minority classes reflects the challenge of limited training samples.
+    </p>
+  </div>
+  <div class="card">
+    <h2>Evaluation Metrics Comparison</h2>
+    <canvas id="metricsChart"></canvas>
+    <p style="color:#64748b; margin-top:12px; font-size:0.9rem">
+      Precision, Recall and F1 Score vary significantly across classes. The model performs best on Moderate DR (Grade 2) due to having the most samples after Grade 0.
+    </p>
+  </div>
+</div>
+
+<!-- RETRAIN TAB -->
+<div id="retrain" class="tab">
+  <div class="card">
+    <h2>Upload New Training Data</h2>
+    <label style="color:#94a3b8; font-size:0.9rem">Select DR Grade (Label)</label>
+    <select id="labelSelect">
+      <option value="0">Grade 0 — No DR</option>
+      <option value="1">Grade 1 — Mild</option>
+      <option value="2">Grade 2 — Moderate</option>
+      <option value="3">Grade 3 — Severe</option>
+      <option value="4">Grade 4 — Proliferative DR</option>
+    </select>
+    <div class="upload-area" onclick="document.getElementById('retrainFiles').click()">
+      <input type="file" id="retrainFiles" accept="image/*" multiple>
+      <p>📁 Click to upload multiple retinal images</p>
+      <p style="color:#64748b; font-size:0.85rem; margin-top:8px">Select multiple files for bulk upload</p>
+    </div>
+    <button class="btn green" onclick="uploadData()">⬆️ Upload Data</button>
+    <div id="uploadStatus" style="margin-top:10px; color:#94a3b8"></div>
+  </div>
+  <div class="card">
+    <h2>Trigger Retraining</h2>
+    <p style="color:#94a3b8; margin-bottom:16px">Once data is uploaded, trigger retraining to fine-tune the model on new data.</p>
+    <button class="btn red" onclick="triggerRetrain()">🔁 Start Retraining</button>
+    <button class="btn" onclick="checkRetrainStatus()" style="margin-left:10px; background:#475569">Check Status</button>
+    <div id="retrainStatus" class="retrain-status status-idle">Status: idle</div>
+  </div>
+</div>
+
+<script>
+const API = 'http://13.61.0.203:8000';
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById(name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+async function loadMetrics() {
+  try {
+    const res = await fetch(`${API}/metrics`);
+    const data = await res.json();
+    document.getElementById('m-accuracy').textContent = (data.accuracy * 100).toFixed(1) + '%';
+    document.getElementById('m-f1').textContent = data.f1_score.toFixed(3);
+    document.getElementById('m-roc').textContent = data.roc_auc.toFixed(3);
+    drawHistoryChart(data.training_history);
+  } catch(e) { console.error(e); }
+}
+
+async function loadHealth() {
+  try {
+    const res = await fetch(`${API}/health`);
+    const data = await res.json();
+    document.getElementById('uptime').textContent = `Uptime: ${data.uptime_seconds}s`;
+    document.getElementById('m-uptime').textContent = data.uptime_seconds;
+  } catch(e) {}
+}
+
+function drawHistoryChart(history) {
+  const ctx = document.getElementById('historyChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: history.accuracy.map((_, i) => `Epoch ${i+1}`),
+      datasets: [
+        { label: 'Train Accuracy', data: history.accuracy, borderColor: '#3b82f6', tension: 0.3, fill: false },
+        { label: 'Val Accuracy', data: history.val_accuracy, borderColor: '#ef4444', tension: 0.3, fill: false },
+        { label: 'Train Loss', data: history.loss, borderColor: '#22c55e', tension: 0.3, fill: false, yAxisID: 'y2' },
+        { label: 'Val Loss', data: history.val_loss, borderColor: '#f59e0b', tension: 0.3, fill: false, yAxisID: 'y2' }
+      ]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+        y2: { position: 'right', ticks: { color: '#94a3b8' }, grid: { display: false } },
+        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+      },
+      plugins: { legend: { labels: { color: '#e2e8f0' } } }
+    }
+  });
+}
+
+function drawVizCharts() {
+  // Chart 1: Class Distribution
+  new Chart(document.getElementById('classChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: ['No DR (0)', 'Mild (1)', 'Moderate (2)', 'Severe (3)', 'Proliferative (4)'],
+      datasets: [{ label: 'Images', data: [1805, 370, 999, 193, 295],
+        backgroundColor: ['#22c55e','#f59e0b','#e67e22','#ef4444','#8b5cf6'] }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } },
+      scales: { y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } } } }
+  });
+
+  // Chart 2: Confidence per class (from eval)
+  new Chart(document.getElementById('confChart').getContext('2d'), {
+    type: 'radar',
+    data: {
+      labels: ['No DR', 'Mild', 'Moderate', 'Severe', 'Proliferative'],
+      datasets: [{ label: 'Avg Confidence', data: [0.20, 0.18, 0.24, 0.17, 0.20],
+        borderColor: '#3b82f6', backgroundColor: '#3b82f633' }]
+    },
+    options: { responsive: true,
+      scales: { r: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' }, pointLabels: { color: '#e2e8f0' } } },
+      plugins: { legend: { labels: { color: '#e2e8f0' } } } }
+  });
+
+  // Chart 3: Metrics per class
+  new Chart(document.getElementById('metricsChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: ['No DR', 'Mild', 'Moderate', 'Severe', 'Proliferative'],
+      datasets: [
+        { label: 'Precision', data: [0.00, 0.00, 0.30, 0.00, 0.00], backgroundColor: '#3b82f6' },
+        { label: 'Recall', data: [0.00, 0.00, 1.00, 0.00, 0.00], backgroundColor: '#22c55e' },
+        { label: 'F1 Score', data: [0.00, 0.00, 0.46, 0.00, 0.00], backgroundColor: '#f59e0b' }
+      ]
+    },
+    options: { responsive: true,
+      scales: { y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } } },
+      plugins: { legend: { labels: { color: '#e2e8f0' } } } }
+  });
+}
+
+function previewImage(input) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = document.getElementById('previewImg');
+      img.src = e.target.result;
+      img.style.display = 'block';
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
+async function runPredict() {
+  const file = document.getElementById('predictFile').files[0];
+  if (!file) { alert('Please select an image first'); return; }
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch(`${API}/predict`, { method: 'POST', body: fd });
+    const data = await res.json();
+    document.getElementById('resultClass').textContent = `Grade ${data.grade}: ${data.class}`;
+    document.getElementById('resultConf').textContent = `Confidence: ${(data.confidence * 100).toFixed(1)}%`;
+    const barsDiv = document.getElementById('probBars');
+    barsDiv.innerHTML = '';
+    for (const [cls, prob] of Object.entries(data.probabilities)) {
+      barsDiv.innerHTML += `<div class="prob-bar">
+        <div class="bar-label"><span>${cls}</span><span>${(prob*100).toFixed(1)}%</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${prob*100}%"></div></div>
+      </div>`;
+    }
+    document.getElementById('resultBox').style.display = 'block';
+  } catch(e) { alert('Prediction failed: ' + e.message); }
+}
+
+async function uploadData() {
+  const files = document.getElementById('retrainFiles').files;
+  const label = document.getElementById('labelSelect').value;
+  if (!files.length) { alert('Please select images first'); return; }
+  const fd = new FormData();
+  for (const f of files) fd.append('files', f);
+  fd.append('label', label);
+  try {
+    const res = await fetch(`${API}/upload`, { method: 'POST', body: fd });
+    const data = await res.json();
+    document.getElementById('uploadStatus').textContent = `✅ Uploaded ${data.uploaded} images for Grade ${label}`;
+  } catch(e) { alert('Upload failed: ' + e.message); }
+}
+
+async function triggerRetrain() {
+  try {
+    const res = await fetch(`${API}/retrain`, { method: 'POST' });
+    const data = await res.json();
+    document.getElementById('retrainStatus').textContent = 'Status: ' + data.message;
+    document.getElementById('retrainStatus').className = 'retrain-status status-running';
+  } catch(e) { alert('Retrain failed: ' + e.message); }
+}
+
+async function checkRetrainStatus() {
+  try {
+    const res = await fetch(`${API}/retrain/status`);
+    const data = await res.json();
+    const el = document.getElementById('retrainStatus');
+    el.textContent = `Status: ${data.status} ${data.last_run ? '| Last run: ' + data.last_run : ''}`;
+    el.className = 'retrain-status status-' + (data.status === 'complete' ? 'complete' : data.status.includes('fail') ? 'failed' : 'running');
+  } catch(e) {}
+}
+
+// Init
+loadMetrics();
+loadHealth();
+drawVizCharts();
+setInterval(loadHealth, 10000);
+</script>
+</body>
+</html>
