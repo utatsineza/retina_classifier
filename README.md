@@ -5,16 +5,16 @@ A complete end-to-end ML pipeline for **Diabetic Retinopathy Detection** using E
 
 ---
 
-## 🎥 Video Demo
+## Video Demo
 [YouTube Demo Link](#) ← Add your YouTube link here after recording
 
-## 🌐 Live URL
+##  Live URL
 - **API:** http://13.61.0.203:8000/docs
 - **UI Dashboard:** http://13.61.0.203:8080
 
 ---
 
-## 📋 Project Description
+##  Project Description
 This project classifies retinal fundus images into 5 grades of Diabetic Retinopathy (No DR, Mild, Moderate, Severe, Proliferative DR) using:
 - **Model:** EfficientNetB0 (Transfer Learning from ImageNet)
 - **Dataset:** APTOS 2019 Blindness Detection (3,662 images)
@@ -25,7 +25,7 @@ This project classifies retinal fundus images into 5 grades of Diabetic Retinopa
 
 ---
 
-## 🚀 Setup Instructions
+##  Setup Instructions
 
 ### 1. Clone the Repository
 ```bash
@@ -66,7 +66,7 @@ locust -f locust/locustfile.py --host=http://localhost:8000 --headless -u 10 -r 
 
 ---
 
-## 📊 Model Evaluation Results
+## Model Evaluation Results
 | Metric | Value |
 |--------|-------|
 | Accuracy | 46.0% |
@@ -77,7 +77,7 @@ locust -f locust/locustfile.py --host=http://localhost:8000 --headless -u 10 -r 
 
 ---
 
-## 🔥 Load Testing Results (1 Docker Container)
+## Load Testing Results (1 Docker Container)
 | Users | Avg Latency | Median | 95th % | Req/s | Failures |
 |-------|-------------|--------|--------|-------|----------|
 | 10 | 728ms | 150ms | 360ms | 3.08 | 0% |
@@ -88,7 +88,7 @@ locust -f locust/locustfile.py --host=http://localhost:8000 --headless -u 10 -r 
 
 ---
 
-## 📁 Project Structure
+##  Project Structure
 ```
 retina_classifier/
 ├── README.md
@@ -114,3 +114,4 @@ retina_classifier/
     ├── best_model.h5
     └── efficientnet_retina.h5
 ```
+
